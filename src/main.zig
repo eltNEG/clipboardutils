@@ -36,4 +36,10 @@ const Operators = struct {
         const output = try allocator.alloc(u8, data.len);
         return std.ascii.upperString(output, data);
     }
+
+    pub fn len(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
+        _ = allocator;
+        std.debug.print("length: {d}\n", .{data.len});
+        return null;
+    }
 };
