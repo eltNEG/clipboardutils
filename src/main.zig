@@ -9,20 +9,25 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     const fields = comptime std.meta.declarations(Operators);
-    inline for (fields) |field| {
-        if (args.len > 1 and std.mem.eql(u8, field.name, args[1])) {
-            _ = try cbu.execClipboardValue(allocator, @field(Operators, field.name));
-            return;
+    for (args[1..]) |arg| {
+        inline for (fields) |field| {
+            if (args.len > 1 and arg[0] == '.' and std.mem.eql(u8, field.name, arg[1..])) {
+                _ = try cbu.execClipboardValue(allocator, @field(Operators, field.name));
+            }
         }
-    } else {
-        _ = try cbu.execClipboardValue(allocator, Operators.print);
     }
 }
 
 const Operators = struct {
+    pub fn noop(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
+        _ = allocator;
+        _ = data;
+        return null;
+    }
+
     pub fn print(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
         _ = allocator;
-        std.debug.print("Clipboard value: {s}\n", .{data});
+        std.debug.print("{s}\n", .{data});
         return null;
     }
 
@@ -38,7 +43,7 @@ const Operators = struct {
 
     pub fn len(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
         _ = allocator;
-        std.debug.print("length: {d}\n", .{data.len});
+        std.debug.print("{d}\n", .{data.len});
         return null;
     }
 
