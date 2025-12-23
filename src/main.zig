@@ -44,6 +44,7 @@ const Operators = struct {
 
     pub fn reverse(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
         const output = try allocator.alloc(u8, data.len);
+        @memcpy(output, data);
         std.mem.reverse(u8, output);
         return output;
     }
