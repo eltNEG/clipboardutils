@@ -50,6 +50,11 @@ const Operators = struct {
 
     const Quote = enum { Open, Close };
 
+    const Char = union(enum) {
+        Value: u8,
+        Eat: u8,
+    };
+
     /// Remove whitespace and newline from the clipboard value
     pub fn compact(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
         const output = try allocator.alloc(u8, data.len);
@@ -57,34 +62,39 @@ const Operators = struct {
         var quote_state: Quote = .Close;
         var eat_next = false;
         for (data) |c| {
-            if (eat_next) {
-                output[j] = c;
-                j += 1;
-                eat_next = false;
-                continue;
-            }
-            switch (c) {
-                '"' => {
-                    quote_state = if (quote_state == .Open) .Close else .Open;
-                    output[j] = c;
+            const char: Char = blk: {
+                if (eat_next) {
+                    eat_next = false;
+                    break :blk .{ .Eat = c };
+                }
+                break :blk .{ .Value = c };
+            };
+            eater: switch (char) {
+                .Eat => |v| {
+                    output[j] = v;
                     j += 1;
                 },
-                '\\' => {
-                    if (quote_state == .Open) {
-                        eat_next = true;
+                .Value => |v| {
+                    switch (v) {
+                        '"' => {
+                            quote_state = if (quote_state == .Open) .Close else .Open;
+                            continue :eater .{ .Eat = c };
+                        },
+                        '\\' => {
+                            if (quote_state == .Open) {
+                                eat_next = true;
+                            }
+                            continue :eater .{ .Eat = c };
+                        },
+                        ' ', '\n' => {
+                            if (quote_state == .Open) {
+                                continue :eater .{ .Eat = c };
+                            }
+                        },
+                        else => {
+                            continue :eater .{ .Eat = c };
+                        },
                     }
-                    output[j] = c;
-                    j += 1;
-                },
-                ' ', '\n' => {
-                    if (quote_state == .Open) {
-                        output[j] = c;
-                        j += 1;
-                    }
-                },
-                else => {
-                    output[j] = c;
-                    j += 1;
                 },
             }
         }
