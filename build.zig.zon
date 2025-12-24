@@ -36,6 +36,10 @@
             .url = "git+https://github.com/adaryorg/nclip2-lib#ab2d423dfe0395dd2189c2e05b963489ee9d1501",
             .hash = "nclip2_lib-0.1.0-98spZ6E8AgBZKbs9teDcG2u8IqwqcvQ4baCNZTFYGse9",
         },
+        .zeit = .{
+            .url = "git+https://github.com/rockorager/zeit?ref=v0.7.0#d1c288293256648124c150b249a819352f3ac18c",
+            .hash = "zeit-0.6.0-5I6bk7V8AgAY0-hM-vUYtKZUFYhXct-VRkqISNNTfEfb",
+        },
     },
     .paths = .{
         "build.zig",

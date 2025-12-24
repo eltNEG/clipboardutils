@@ -1,5 +1,6 @@
 const std = @import("std");
 const cbu = @import("cbu");
+const zeit = @import("zeit");
 
 pub fn main() !void {
     const args = try std.process.argsAlloc(std.heap.page_allocator);
@@ -107,6 +108,32 @@ const Operators = struct {
         _ = allocator.resize(output, j);
 
         return output[0..j];
+    }
+
+    pub fn fromunix(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
+        const nanoseconds = try std.fmt.parseInt(i98, data, 10) * std.time.ns_per_s;
+        const now = zeit.Instant{ .timestamp = nanoseconds, .timezone = &zeit.utc };
+        const buf = try allocator.alloc(u8, 19);
+        var writer: std.Io.Writer = .fixed(buf);
+        try now.time().strftime(&writer, "%d-%m-%Y %H:%M:%S");
+
+        return buf;
+    }
+
+    pub fn unixts(allocator: std.mem.Allocator, data: []const u8) anyerror!?[]u8 {
+        _ = data;
+
+        var threaded: std.Io.Threaded = .init(allocator);
+        defer threaded.deinit();
+        const io = threaded.io();
+        const _now = try std.Io.Clock.real.now(io);
+        const dt = _now.toSeconds();
+        const buf = try allocator.alloc(u8, 10);
+        var writer: std.Io.Writer = .fixed(buf);
+        try writer.print("{d}", .{dt});
+        try writer.flush();
+
+        return buf;
     }
 };
 
