@@ -3,11 +3,12 @@ const cbu = @import("cbu");
 const zeit = @import("zeit");
 
 pub fn main() !void {
-    const args = try std.process.argsAlloc(std.heap.page_allocator);
-    defer std.process.argsFree(std.heap.page_allocator, args);
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
 
     const fields = comptime std.meta.declarations(Operators);
     for (args[1..]) |arg| {
