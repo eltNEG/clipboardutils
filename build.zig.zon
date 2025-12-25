@@ -40,6 +40,10 @@
             .url = "git+https://github.com/rockorager/zeit?ref=v0.7.0#d1c288293256648124c150b249a819352f3ac18c",
             .hash = "zeit-0.6.0-5I6bk7V8AgAY0-hM-vUYtKZUFYhXct-VRkqISNNTfEfb",
         },
+        .base58 = .{
+            .url = "git+https://github.com/Syndica/base58-zig#2acfa605d23d4d565a7e5a8ff35ea4a827eaaab9",
+            .hash = "base58-0.2.0-wW0iYMIiAABft2x6NlD5mMmFx7-VWfHJq5EAgVQw068t",
+        },
     },
     .paths = .{
         "build.zig",
