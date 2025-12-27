@@ -234,27 +234,77 @@ const Operators = struct {
 
     pub fn arr(allocator: std.mem.Allocator, data: []const u8, config: []const u8) anyerror!?[]u8 {
         const cfg = try ArrConfig.parse(config);
-        if (cfg.as == .byt) {
-            const mul = 2 + (data.len * (3 + cfg.sep.len));
-            const buf = try allocator.alloc(u8, mul);
-            defer allocator.free(buf);
-            var s = try std.fmt.bufPrint(buf[0..], "{c}", .{@intFromEnum(cfg.fix)});
-            var j: usize = s.len;
-            for (data, 0..) |b, i| {
-                _ = i;
-                s = try std.fmt.bufPrint(buf[j..], "{d}{s}", .{ b, cfg.sep });
-                j += s.len;
-            }
-            s = try std.fmt.bufPrint(buf[j - cfg.sep.len ..], "{c}", .{cfg.suf});
-            std.debug.print("{s}\n", .{buf[0 .. j + s.len - 1]});
+        // std.debug.print("{f}\n", .{cfg});
+        const _a = try arrParse(allocator, cfg, data);
+        defer allocator.free(_a[0]);
+        const a = _a[0][0.._a[1]];
+
+        var buf = try allocator.alloc(u8, 256);
+        var s: usize = 0;
+        var w: []u8 = undefined;
+        if (cfg.output_fix != .None) {
+            w = try std.fmt.bufPrint(buf[s..], "{c}", .{@intFromEnum(cfg.output_fix)});
+            s += w.len;
         }
-        return null;
+        for (a, 0..) |b, i| {
+            switch (cfg.output_as) {
+                .s => {
+                    w = try std.fmt.bufPrint(buf[s..], "{c}{s}", .{ b, if (i < a.len - 1) cfg.output_sep else "" });
+                },
+                .b => {
+                    w = try std.fmt.bufPrint(buf[s..], "{d}{s}", .{ b, if (i < a.len - 1) cfg.output_sep else "" });
+                },
+                .x => {
+                    w = try std.fmt.bufPrint(buf[s..], "{x}{s}", .{ b, if (i < a.len - 1) cfg.output_sep else "" });
+                },
+            }
+            s += w.len;
+        }
+        if (cfg.output_fix != .None) {
+            w = try std.fmt.bufPrint(buf[s..], "{c}", .{@intFromEnum(brackets.close(cfg.output_fix))});
+            s += w.len;
+        }
+        buf = try allocator.realloc(buf, s);
+        return buf;
     }
 };
 
+fn arrParse(allocator: std.mem.Allocator, cfg: ArrConfig, data: []const u8) !struct { []u8, usize } {
+    var i = if (cfg.input_fix == .None) data.len else data.len - 2;
+    var res: []u8 = try allocator.alloc(u8, i);
+    if (cfg.input_fix != .None) {
+        @memcpy(res, data[1 .. data.len - 1]);
+    } else {
+        @memcpy(res, data);
+    }
+    if (!std.mem.eql(u8, cfg.input_sep, "")) {
+        var iter = std.mem.splitSequence(u8, res, cfg.input_sep);
+        var j: usize = 0;
+        while (iter.next()) |item| {
+            // std.debug.print("item={s}\n", .{item});
+            switch (cfg.input_as) {
+                .s => {
+                    res[j] = item[0];
+                },
+                .b => {
+                    res[j] = try std.fmt.parseInt(u8, item, 10);
+                },
+                .x => {
+                    res[j] = try std.fmt.parseInt(u8, item, 16);
+                },
+            }
+            j += 1;
+        }
+        i = j;
+    }
+    // const t = allocator.resize(res, i); // doesn;t work
+    return .{ res, i };
+}
+
 const asin = enum {
-    str,
-    byt,
+    s,
+    b,
+    x,
 };
 
 const brackets = enum(u8) {
@@ -264,61 +314,92 @@ const brackets = enum(u8) {
     round = '(',
     angle = '<',
 
-    pub fn close(self: brackets) u8 {
+    pub fn close(self: brackets) closingBrackets {
         return switch (self) {
-            .square => ']',
-            .curly => '}',
-            .round => ')',
-            .angle => '>',
-            .None => '\x00',
+            .square => closingBrackets.square,
+            .curly => closingBrackets.curly,
+            .round => closingBrackets.round,
+            .angle => closingBrackets.angle,
+            .None => closingBrackets.None,
         };
     }
 };
 
+const closingBrackets = enum(u8) {
+    square = ']',
+    curly = '}',
+    round = ')',
+    angle = '>',
+    None = '\x00',
+};
+
 const ArrConfig = struct {
-    sep: []const u8 = ", ",
-    fix: brackets = .square,
-    suf: u8 = brackets.close(.square),
-    as: asin = .str,
-    in: asin = .str,
+    input_fix: brackets = .square,
+    output_fix: brackets = .square,
+    input_as: asin = .s,
+    output_as: asin = .s,
+    input_sep: []const u8 = ", ",
+    output_sep: []const u8 = ", ",
 
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
     ) !void {
-        try writer.print("(.sep='{s}', .fix='{c}', .as='{any}', .in='{any}')", .{
-            self.sep,
-            @intFromEnum(self.fix),
-            self.as,
-            self.in,
+        try writer.print("(.input_fix='{c}', .output_fix='{c}', .input_as='{any}', .output_as='{any}', .input_sep='{s}', .output_sep='{s}')", .{
+            @intFromEnum(self.input_fix),
+            @intFromEnum(self.output_fix),
+            self.input_as,
+            self.output_as,
+            self.input_sep,
+            self.output_sep,
         });
     }
+
     pub fn parse(config: []const u8) anyerror!ArrConfig {
         var arrConfig = ArrConfig{};
-        var iter = std.mem.splitScalar(u8, config, ',');
-
-        while (iter.next()) |item| {
-            if (std.mem.startsWith(u8, item, "sep=")) {
-                arrConfig.sep = item[4..];
-            } else if (std.mem.startsWith(u8, item, "fix=")) {
-                arrConfig.fix = std.enums.fromInt(brackets, item[4]) orelse .None;
-                arrConfig.suf = brackets.close(arrConfig.fix);
-            } else if (std.mem.startsWith(u8, item, "as=")) {
-                if (std.meta.stringToEnum(asin, item[3..])) |v| {
-                    arrConfig.as = v;
-                }
-            } else if (std.mem.startsWith(u8, item, "in=")) {
-                if (std.meta.stringToEnum(asin, item[3..])) |v| {
-                    arrConfig.in = v;
+        blk: for (config, 0..) |char, i| {
+            if (char == '=') {
+                if (std.mem.eql(u8, config[i - 4 .. i], "iput")) {
+                    arrConfig.input_fix = std.enums.fromInt(brackets, config[i + 1]) orelse .None;
+                    arrConfig.input_as = std.meta.stringToEnum(asin, config[i + 2 .. i + 3]) orelse .s;
+                    if (config.len <= i + 3) { // tweak this
+                        arrConfig.input_sep = "";
+                        continue;
+                    }
+                    const rest = config[i + 3 ..];
+                    for (rest, 0..) |char2, j| { // 'iput=[s, ,oput=[s,' 6
+                        if (char2 == '=') {
+                            arrConfig.input_sep = rest[0 .. j - 5];
+                            continue :blk;
+                        }
+                    }
+                    arrConfig.input_sep = config[i + 3 ..];
+                } else if (std.mem.eql(u8, config[i - 4 .. i], "oput")) {
+                    arrConfig.output_fix = std.enums.fromInt(brackets, config[i + 1]) orelse .None;
+                    arrConfig.output_as = std.meta.stringToEnum(asin, config[i + 2 .. i + 3]) orelse .s;
+                    if (config.len <= i + 3) { // tweak this
+                        arrConfig.output_sep = "";
+                        continue;
+                    }
+                    const rest = config[i + 3 ..];
+                    for (rest, 0..) |char2, j| { // 'iput=[s, ,oput=[s,' 6
+                        if (char2 == '=') {
+                            arrConfig.output_sep = rest[0 .. j - 5];
+                            break;
+                        }
+                    }
+                    arrConfig.output_sep = config[i + 3 ..];
                 }
             }
         }
+
         return ArrConfig{
-            .sep = arrConfig.sep,
-            .fix = arrConfig.fix,
-            .suf = arrConfig.suf,
-            .as = arrConfig.as,
-            .in = arrConfig.in,
+            .input_fix = arrConfig.input_fix,
+            .output_fix = arrConfig.output_fix,
+            .input_as = arrConfig.input_as,
+            .output_as = arrConfig.output_as,
+            .input_sep = arrConfig.input_sep,
+            .output_sep = arrConfig.output_sep,
         };
     }
 };
@@ -327,7 +408,7 @@ test "compact" {
     const allocator = std.testing.allocator;
     const input = "Hello, World!";
     const expected = [_]u8{ 'H', 'e', 'l', 'l', 'o', ',', 'W', 'o', 'r', 'l', 'd', '!' };
-    const actual = try Operators.compact(allocator, input);
+    const actual = try Operators.compact(allocator, input, "");
     if (actual) |actual_value| {
         defer allocator.free(actual_value);
         try std.testing.expectEqualSlices(u8, &expected, actual_value);
@@ -338,7 +419,7 @@ test "compact with quotes" {
     const allocator = std.testing.allocator;
     const input = "\"Hello, World!\".hi johndoe";
     const expected = [_]u8{ '"', 'H', 'e', 'l', 'l', 'o', ',', ' ', 'W', 'o', 'r', 'l', 'd', '!', '"', '.', 'h', 'i', 'j', 'o', 'h', 'n', 'd', 'o', 'e' };
-    const actual = try Operators.compact(allocator, input);
+    const actual = try Operators.compact(allocator, input, "");
     if (actual) |actual_value| {
         defer allocator.free(actual_value);
         try std.testing.expectEqualSlices(u8, &expected, actual_value);
@@ -349,7 +430,7 @@ test "compact with escaped quotes" {
     const allocator = std.testing.allocator;
     const input = "\"Hello, World!\".hi johndoe";
     const expected = [_]u8{ '"', 'H', 'e', 'l', 'l', 'o', ',', ' ', 'W', 'o', 'r', 'l', 'd', '!', '"', '.', 'h', 'i', 'j', 'o', 'h', 'n', 'd', 'o', 'e' };
-    const actual = try Operators.compact(allocator, input);
+    const actual = try Operators.compact(allocator, input, "");
     if (actual) |actual_value| {
         defer allocator.free(actual_value);
         try std.testing.expectEqualSlices(u8, &expected, actual_value);
@@ -372,9 +453,84 @@ test "json value" {
         \\[{"name":"John Doe","age":30,"email address":"john.doe@example.com","key":"value\""}]
     ;
     const allocator = std.testing.allocator;
-    const actual = try Operators.compact(allocator, jsn);
+    const actual = try Operators.compact(allocator, jsn, "");
     if (actual) |actual_value| {
         defer allocator.free(actual_value);
         try std.testing.expectEqualSlices(u8, expected, actual_value);
     }
+}
+
+test "default config parse" {
+    const input = "";
+    const expected = ArrConfig{
+        .input_fix = brackets.square,
+        .input_as = asin.s,
+        .input_sep = ", ",
+
+        .output_fix = .square,
+        .output_as = asin.s,
+        .output_sep = ", ",
+    };
+    const actual = try ArrConfig.parse(input);
+    try std.testing.expectEqual(expected, actual);
+}
+test "iput and oput config parse" {
+    const input = "iput={b,,oput=<b..";
+    const expected = ArrConfig{
+        .input_fix = brackets.curly,
+        .input_as = asin.b,
+        .input_sep = ",",
+
+        .output_fix = brackets.angle,
+        .output_as = asin.b,
+        .output_sep = "..",
+    };
+
+    const actual = try ArrConfig.parse(input);
+    // std.debug.print("{f}\n", .{actual});
+    try isEqualArrConfig(expected, actual);
+}
+
+test "iput config parse" {
+    const input = "iput={b";
+    const expected = ArrConfig{
+        .input_fix = brackets.curly,
+        .input_as = asin.b,
+        .input_sep = "",
+
+        .output_fix = .square,
+        .output_as = asin.s,
+        .output_sep = ", ",
+    };
+
+    const actual = try ArrConfig.parse(input);
+    // std.debug.print("{f}\n", .{actual});
+    try isEqualArrConfig(expected, actual);
+}
+
+test "oput config parse" {
+    const input = "oput=(b-";
+    const expected = ArrConfig{
+        .input_fix = brackets.square,
+        .input_as = asin.s,
+        .input_sep = ", ",
+
+        .output_fix = .round,
+        .output_as = asin.b,
+        .output_sep = "-",
+    };
+
+    const actual = try ArrConfig.parse(input);
+    // std.debug.print("{f}\n", .{actual});
+    try isEqualArrConfig(expected, actual);
+}
+
+fn isEqualArrConfig(config1: ArrConfig, config2: ArrConfig) !void {
+    try std.testing.expectEqual(config1.input_fix, config2.input_fix);
+    try std.testing.expectEqual(config1.input_as, config2.input_as);
+    try std.testing.expectEqualSlices(u8, config1.input_sep, config2.input_sep);
+
+    try std.testing.expectEqual(config1.output_fix, config2.output_fix);
+    try std.testing.expectEqual(config1.output_as, config2.output_as);
+    try std.testing.expectEqualSlices(u8, config1.output_sep, config2.output_sep);
 }
