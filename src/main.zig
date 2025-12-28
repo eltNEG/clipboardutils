@@ -232,6 +232,7 @@ const Operators = struct {
         return null;
     }
 
+    /// Usage: cbu .arr 'iput=_s,oput=(x.' .print .arr 'iput=(x.,oput={s","' .print
     pub fn arr(allocator: std.mem.Allocator, data: []const u8, config: []const u8) anyerror!?[]u8 {
         const cfg = try ArrConfig.parse(config);
         // std.debug.print("{f}\n", .{cfg});
@@ -266,6 +267,25 @@ const Operators = struct {
         }
         buf = try allocator.realloc(buf, s);
         return buf;
+    }
+
+    /// Show=x Skip=--- Hide=*
+    pub fn view(allocator: std.mem.Allocator, data: []const u8, config: []const u8) anyerror!?[]u8 {
+        var end_last = std.mem.splitSequence(u8, config, "---");
+        const first = end_last.next() orelse config;
+        const last = end_last.next() orelse "";
+        const buf = try allocator.alloc(u8, data.len);
+        defer allocator.free(buf);
+        @memcpy(buf, data);
+        for (buf, 0..) |item, i| {
+            if ((i + 1 <= first.len and std.ascii.isAlphanumeric(first[i])) or (buf.len - i <= last.len and std.ascii.isAlphanumeric(last[i + last.len - buf.len]))) {
+                buf[i] = item;
+                continue;
+            }
+            buf[i] = '*';
+        }
+        std.debug.print("{s}\n", .{buf});
+        return null;
     }
 };
 
