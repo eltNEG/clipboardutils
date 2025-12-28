@@ -71,11 +71,17 @@ cbu .tohex .print
 | `.tob58`       | Encodes text as base58 (Bitcoin alphabet). (Demo/partial)          | None                       | `cbu .tob58 .print`                           |
 | `.fromb58`     | Decodes base58 text. (Demo/partial)                                | None                       | `cbu .fromb58 .print`                         |
 | `.arr`         | Parses and formats arrays from text with custom config.             | See below                  | `cbu .arr 'iput=_s,oput=(x.' .print`          |
-| `.view`        | Masks parts of the text, showing only specified sections.           | Mask config string         | `cbu .view '3---3' .print`                    |
+| `.view`        | Masks parts of the text, showing only specified sections.           | Mask config string         | `cbu .view 'a**b---ccc' .print`                    |
 
 **Notes:**
-- For `.arr`, the config string can specify input/output format, separators, and brackets. Example: `'iput=_s,oput=(x.'`
-- For `.view`, the config string specifies how many characters to show at the start/end, e.g., `'3---3'` shows 3 at start and end, masking the rest.
+- **`.arr` operator:**  
+  The config string lets you control how arrays are read and formatted. You can set the input and output format (string, decimal, or hex), separators, and brackets.  
+  For example: `'iput=_s,oput=(b,'` means the input is a plain string with no brackets or separators (like `hello`), and the output will be decimal numbers inside parentheses, separated by commas (like `(104,101,108,108,111)`).
+
+- **`.view` operator:**  
+  By default, all characters are hidden (masked) except those you specify as visible using letters or numbers in the pattern. Use `*` to mask a character, and `---` to skip to the end of the string.  
+  For example: `'a**b---ccc'` will show the first character, mask the next two, show the fourth, then mask until the last three, which are shown.  
+  If your clipboard contains `Hello world!`, running `cbu .view 'a**b---ccc' .print` will output `H**l*****ld!`.
 
 You can chain operations as needed:
 
