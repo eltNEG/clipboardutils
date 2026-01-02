@@ -287,6 +287,37 @@ const Operators = struct {
         std.debug.print("{s}\n", .{buf});
         return null;
     }
+
+    pub fn help(allocator: std.mem.Allocator, data: []const u8, config: []const u8) anyerror!?[]u8 {
+        _ = data;
+        _ = config;
+        _ = allocator;
+
+        const fields = comptime std.meta.declarations(Operators);
+
+        var buf: [fields.len * 20]u8 = undefined;
+
+        // var buf = try allocator.alloc(u8, fields.len * 20);
+        // defer allocator.free(buf);
+
+        var i: usize = 1;
+        var j: usize = 0;
+
+        buf[0] = '\n';
+        for (fields) |field| {
+            _ = try std.fmt.bufPrint(buf[i..], "{s: <20}", .{field.name});
+            i += 18;
+            j += 1;
+            if (j % 4 == 0) {
+                _ = try std.fmt.bufPrint(buf[i..], "\n", .{});
+                i += 1;
+            }
+        }
+
+        std.debug.print("{s}\n", .{buf[0..i]});
+
+        return null;
+    }
 };
 
 fn arrParse(allocator: std.mem.Allocator, cfg: ArrConfig, data: []const u8) !struct { []u8, usize } {
