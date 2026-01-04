@@ -3,6 +3,7 @@ const cbu = @import("cbu");
 const zeit = @import("zeit");
 const base58 = @import("base58");
 const b58 = base58.Table.BITCOIN;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -317,6 +318,32 @@ const Operators = struct {
         std.debug.print("{s}\n", .{buf[0..i]});
 
         return null;
+    }
+
+    /// Ethereum address from https://github.com/Raiden1411/zabi/blob/d3f57adf3367123435deb4abab329421f1fc68d2/src/utils/utils.zig#L72
+    pub fn ethaddress(allocator: std.mem.Allocator, data: []const u8, config: []const u8) anyerror!?[]u8 {
+        _ = config;
+
+        var buf: [40]u8 = undefined;
+        const lower = std.ascii.lowerString(&buf, if (std.mem.startsWith(u8, data, "0x")) data[2..] else data);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(lower, &hashed, .{});
+        const hex = std.fmt.bytesToHex(hashed, .lower);
+
+        const checksum = try allocator.alloc(u8, 42);
+        for (checksum[2..], 0..) |*c, i| {
+            const char = lower[i];
+
+            if (try std.fmt.charToDigit(hex[i], 16) > 7) {
+                c.* = std.ascii.toUpper(char);
+            } else {
+                c.* = char;
+            }
+        }
+        @memcpy(checksum[0..2], "0x");
+
+        return checksum;
     }
 };
 
