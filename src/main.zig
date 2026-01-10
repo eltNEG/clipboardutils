@@ -5,19 +5,16 @@ const base58 = @import("base58");
 const b58 = base58.Table.BITCOIN;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try init.minimal.args.toSlice(allocator);
+    defer allocator.free(args);
 
     const fields = comptime std.meta.declarations(Operators);
     for (args[1..], 1..) |arg, index| {
         inline for (fields) |field| {
             if (args.len > 1 and arg[0] == '.' and std.mem.eql(u8, field.name, arg[1..])) {
-                // const config = if (args.len >= index + 2 and (args[index + 1][0] != '.') and (args[index + 1][0] == '\'' or args[index + 1][0] == '"')) args[index + 1] else "";
                 const config = if (args.len >= index + 2 and (args[index + 1][0] != '.')) args[index + 1] else "";
                 _ = try cbu.execClipboardValue(allocator, @field(Operators, field.name), config);
             }
@@ -138,7 +135,8 @@ const Operators = struct {
         _ = config;
         _ = data;
 
-        var threaded: std.Io.Threaded = .init(allocator);
+        // var threaded: std.Io.Threaded = .init(allocator, .{.environ = .empty,});
+        var threaded: std.Io.Threaded = .init_single_threaded;
         defer threaded.deinit();
         const io = threaded.io();
         const _now = try std.Io.Clock.real.now(io);
